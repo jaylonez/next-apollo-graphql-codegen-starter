@@ -1,12 +1,15 @@
-const {
+import {
   makeSchema,
   nonNull,
   objectType,
   inputObjectType,
   arg,
   asNexusMethod,
-} = require('nexus')
-const { DateTimeResolver } = require('graphql-scalars')
+  nullable,
+} from 'nexus'
+import { nexusPrisma } from 'nexus-plugin-prisma'
+import { DateTimeResolver } from 'graphql-scalars'
+import { Context } from './context'
 
 const DateTime = asNexusMethod(DateTimeResolver, 'date')
 
@@ -20,12 +23,12 @@ const Query = objectType({
       },
     })
     t.field('userById', {
-      type: 'User',
+      type: nullable('User'),
       args: {
         id: nonNull('ID'),
       },
-      resolve: (_, { id }, { prisma }) => {
-        return prisma.user.findUnique({ id })
+      resolve: (_, { id }, { prisma }: Context) => {
+        return prisma.user.findUnique({ where: { id } })
       },
     })
   },
@@ -43,7 +46,7 @@ const Mutation = objectType({
           }),
         ),
       },
-      resolve: async (_, { data }, { prisma }) => {
+      resolve: async (_, { data }, { prisma }: Context) => {
         await prisma.user.create({
           data: {
             email: data.email,
@@ -59,8 +62,8 @@ const Mutation = objectType({
 const User = objectType({
   name: 'User',
   definition(t) {
-    t.nonNull.int('id')
-    t.nonNull.string('email')
+    t.model.id()
+    t.model.email()
   },
 })
 
@@ -71,12 +74,17 @@ const UserCreateInput = inputObjectType({
   },
 })
 
-const schema = makeSchema({
+export const schema = makeSchema({
   types: [Query, Mutation, User, UserCreateInput, DateTime],
   outputs: {
-    schema: __dirname + '/../schema.graphql',
+    schema: __dirname + '/generated/schema.graphql',
     typegen: __dirname + '/generated/nexus.ts',
   },
+  plugins: [
+    nexusPrisma({
+      shouldGenerateArtifacts: true,
+    }),
+  ],
   sourceTypes: {
     modules: [
       {
@@ -86,7 +94,3 @@ const schema = makeSchema({
     ],
   },
 })
-
-module.exports = {
-  schema: schema,
-}
